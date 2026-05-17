@@ -1,0 +1,16 @@
+{
+  "password": "1234",
+  "tarifas": {
+    "diurna": {
+      "banderazo": 9.00,
+      "precioKm": 0.14,
+      "precioEspera": 0.14
+    },
+    "nocturna": {
+      "banderazo": 11.00,
+      "precioKm": 0.17,
+      "precioEspera": 0.17
+    }
+  },
+  "velMinima": 8
+}
