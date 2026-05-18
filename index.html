@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>TAXÍMETRO EDOMEX</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #1a1a2e; min-height: 100vh; min-height: 100dvh; display: flex; justify-content: center; align-items: center; padding: 6px; overflow: hidden; }
+        .taximetro-container { background: #16213e; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); max-width: 500px; width: 100%; height: 98vh; height: 98dvh; display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: linear-gradient(135deg, #006400 0%, #228B22 100%); color: #FFD700; padding: 8px 10px; border-radius: 14px 14px 0 0; display: flex; align-items: center; justify-content: center; gap: 6px; position: relative; overflow: hidden; flex-shrink: 0; }
+        .header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%); animation: shine 3s infinite; }
+        @keyframes shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        .taxi-icon { font-size: 1.3em; animation: bounce 2s infinite; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.3)); position: relative; z-index: 1; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        .header-text { position: relative; z-index: 1; text-align: left; }
+        .header h1 { font-size: 0.95em; text-shadow: 0 0 6px rgba(255,215,0,0.5); letter-spacing: 1px; margin: 0; line-height: 1.1; }
+        .edomex-badge { background: rgba(255,215,0,0.2); color: #FFD700; padding: 1px 5px; border-radius: 5px; font-size: 0.5em; display: inline-block; border: 1px solid #FFD700; }
+        .tarifa-indicator { padding: 2px 5px; border-radius: 7px; font-weight: bold; font-size: 0.55em; position: absolute; top: 4px; right: 4px; z-index: 1; }
+        .tarifa-diurna { background: #ffd32a; color: #2d3436; }
+        .tarifa-nocturna { background: #2c3e50; color: #f1c40f; }
+        
+        .hora-actual { text-align: center; color: #aaa; font-size: 0.6em; padding: 4px 0; flex-shrink: 0; background: rgba(0,0,0,0.3); }
+        .debug-info { background: #fff3cd; border: 1px solid #ffc107; padding: 2px 5px; font-size: 0.5em; color: #856404; display: none; flex-shrink: 0; }
+        .debug-info.show { display: block; }
+        
+        /* PANTALLA NEGRA */
+        .display-principal { 
+            background: #000; color: #00ff88; padding: 12px 10px; 
+            font-family: 'Courier New', monospace; 
+            flex: 1; display: flex; flex-direction: column; justify-content: space-evenly;
+            margin: 0 6px; border-radius: 10px;
+        }
+        
+        .tarifa-actual { 
+            font-size: clamp(3.5em, 13vw, 7em);
+            text-align: center; font-weight: bold; 
+            text-shadow: 0 0 25px rgba(0,255,136,0.9); 
+            transition: all 0.3s; line-height: 1;
+            letter-spacing: 3px;
+            max-width: 100%; overflow: hidden; white-space: nowrap;
+        }
+        .tarifa-actual.salto { color: #FFD700; text-shadow: 0 0 40px rgba(255,215,0,0.9); transform: scale(1.04); }
+        
+        /* DATOS EN 2 LÍNEAS - MÁS GRANDES */
+        .info-viaje { 
+            display: flex; flex-direction: column; gap: 6px; margin: 6px 0; 
+        }
+        .info-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+        }
+        .info-item { 
+            background: rgba(0,255,136,0.12); padding: 10px 8px; 
+            border-radius: 8px; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .info-label { font-size: 0.75em; color: #00cc6a; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .info-value { font-size: 1.4em; color: #00ff88; transition: all 0.3s; font-weight: bold; }
+        .info-value.saltando { color: #FFD700 !important; transform: scale(1.15); }
+        
+        .gps-status { display: flex; align-items: center; justify-content: center; margin: 3px 0; font-size: 0.65em; }
+        .gps-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; }
+        .gps-active { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+        .gps-inactive { background: #d63031; }
+        
+        .barra-estado { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; background: rgba(0,255,136,0.06); border-radius: 4px; font-size: 0.55em; color: #00cc6a; }
+        .estado-servicio-mini { padding: 2px 6px; border-radius: 6px; font-weight: bold; font-size: 0.85em; }
+        .estado-libre-mini { background: #00b894; color: white; }
+        .estado-ocupado-mini { background: #d63031; color: white; animation: pulse 1s infinite; }
+        .estado-cobro-mini { background: #f39c12; color: white; animation: blinkYellow 0.8s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+        @keyframes blinkYellow { 0%, 100% { background: #f39c12; } 50% { background: #FFD700; } }
+        
+        .espera-container { flex-shrink: 0; }
+        .espera-info-text { font-size: 0.6em; color: #FF9800; text-align: center; margin-bottom: 1px; font-weight: bold; display: none; }
+        .espera-info-text.activo { display: block; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .progreso-espera { width: 100%; height: 5px; background: rgba(255,152,0,0.2); border-radius: 3px; overflow: hidden; }
+        .progreso-espera-fill { height: 100%; background: linear-gradient(90deg, #FF9800, #FF5722); transition: width 1s linear; width: 0%; border-radius: 3px; }
+
+        /* BOTONES INFERIORES */
+        .botones-inferiores { flex-shrink: 0; padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .btn { padding: 11px 8px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-iniciar { background: linear-gradient(135deg, #00b894, #00cec9); color: white; font-size: 0.85em; }
+        .btn-detener { background: linear-gradient(135deg, #d63031, #e17055); color: white; font-size: 0.85em; }
+        .btn-cobrar { background: linear-gradient(135deg, #f39c12, #e67e22); color: white; font-size: 0.8em; animation: blinkCobrar 0.8s infinite; display: none; }
+        .btn-cobrar.activo { display: block; }
+        .btn-cancelar-cobro { background: #95a5a6; color: white; font-size: 0.8em; display: none; }
+        .btn-cancelar-cobro.activo { display: block; }
+        @keyframes blinkCobrar { 0%, 100% { background: linear-gradient(135deg, #f39c12, #e67e22); } 50% { background: linear-gradient(135deg, #FFD700, #f39c12); } }
+        .btn-maps { background: linear-gradient(135deg, #4285f4, #34a853); color: white; font-size: 0.65em; padding: 7px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+        .btn-config { background: #636e72; color: white; font-size: 0.7em; padding: 8px; width: 100%; }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* PÁGINAS SECUNDARIAS */
+        .config-page, .historial-page { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #16213e; color: #eee; z-index: 100; border-radius: 18px; overflow-y: auto; padding: 15px; }
+        .config-page.activo, .historial-page.activo { display: block; }
+        .config-section { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 10px; margin: 10px 0; }
+        .config-bloqueada { filter: blur(4px); pointer-events: none; user-select: none; }
+        .config-title { font-weight: bold; margin-bottom: 6px; font-size: 0.9em; display: flex; align-items: center; justify-content: space-between; color: #FFD700; }
+        .input-group { display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+        .input-group label { flex: 1; font-size: 0.75em; margin-right: 6px; color: #ccc; }
+        .input-group input, .input-group select { width: 80px; padding: 5px; border: 2px solid #444; border-radius: 5px; font-size: 0.75em; text-align: center; background: #1a1a2e; color: #00ff88; }
+        .input-group input[type="checkbox"] { width: auto; margin-left: 6px; }
+        .tarifa-section { border-left: 3px solid #667eea; padding-left: 10px; margin: 8px 0; }
+        .tarifa-nocturna-section { border-left-color: #f1c40f; }
+        .btn-volver { background: #2d3436; color: white; font-size: 0.8em; padding: 10px; width: 100%; margin-top: 10px; }
+        .btn-desbloquear { background: #27ae60; color: white; font-size: 0.65em; padding: 4px 8px; }
+        .btn-accion { font-size: 0.7em; padding: 8px; flex: 1; }
+        .btn-historial { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; }
+        .btn-exportar { background: linear-gradient(135deg, #00b894, #00cec9); color: white; }
+        .historial-item { background: rgba(255,255,255,0.05); border-left: 4px solid #667eea; margin: 6px 0; padding: 8px; border-radius: 5px; font-size: 0.8em; color: #ccc; }
+        .historial-item.nocturno { border-left-color: #f1c40f; }
+        .historial-item.cancelado { border-left-color: #e74c3c; background: rgba(231,76,60,0.1); }
+        .estadisticas-rapidas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 8px; font-size: 0.7em; }
+        .stat-item { background: rgba(0,255,136,0.08); padding: 5px; border-radius: 5px; text-align: center; color: #00ff88; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 200; }
+        .modal-content { background: #16213e; color: #eee; padding: 20px; border-radius: 15px; max-width: 350px; width: 90%; text-align: center; }
+        .modal-content h3 { margin-bottom: 10px; font-size: 1em; color: #FFD700; }
+        .modal-content input { width: 100%; padding: 10px; margin: 8px 0; border: 2px solid #444; border-radius: 8px; font-size: 1em; text-align: center; background: #1a1a2e; color: #00ff88; }
+        .modal-content textarea { width: 100%; height: 120px; margin: 8px 0; padding: 8px; border: 2px solid #444; border-radius: 8px; font-family: monospace; font-size: 0.75em; background: #1a1a2e; color: #00ff88; }
+        .modal-content select { width: 100%; padding: 8px; margin: 8px 0; background: #1a1a2e; color: #00ff88; border: 2px solid #444; border-radius: 8px; }
+        .notification { position: fixed; top: 15px; right: 15px; background: #2d3436; color: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 300; animation: slideIn 0.3s ease; max-width: 250px; font-size: 0.8em; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div class="taximetro-container" id="appContainer">
+        <div class="header">
+            <span class="taxi-icon">🚕</span>
+            <div class="header-text"><h1>TAXÍMETRO EDOMEX</h1><span class="edomex-badge">EDO. MÉXICO</span></div>
+            <div id="tarifaIndicator" class="tarifa-indicator tarifa-diurna">☀️ DIURNA</div>
+        </div>
+        
+        <div class="hora-actual" id="horaActual"></div>
+        <div class="debug-info" id="debugInfo"><span id="debugText"></span></div>
+        
+        <!-- PANTALLA NEGRA -->
+        <div class="display-principal">
+            <div class="tarifa-actual" id="tarifaActual">$0.00</div>
+            
+            <!-- DATOS EN 2 LÍNEAS -->
+            <div class="info-viaje">
+                <div class="info-row">
+                    <div class="info-item"><div class="info-label">Km</div><div class="info-value" id="kmRecorridos">0</div></div>
+                    <div class="info-item"><div class="info-label">Tiempo</div><div class="info-value" id="tiempoTranscurrido">00:00</div></div>
+                </div>
+                <div class="info-row">
+                    <div class="info-item"><div class="info-label">Espera</div><div class="info-value" id="tiempoEspera">0m</div></div>
+                    <div class="info-item"><div class="info-label">Vel</div><div class="info-value" id="velocidad">0</div></div>
+                </div>
+            </div>
+            
+            <div class="gps-status"><div class="gps-dot gps-inactive" id="gpsDot"></div><span id="gpsStatus">GPS: Buscando...</span></div>
+            <div class="espera-container">
+                <div class="espera-info-text" id="esperaInfoText">⏳ ESPERA: $<span id="esperaCobroActual">0.00</span></div>
+                <div class="progreso-espera"><div class="progreso-espera-fill" id="progresoEspera"></div></div>
+            </div>
+            <div class="barra-estado">
+                <div id="estadoServicioMini" class="estado-servicio-mini estado-libre-mini">LIBRE</div>
+                <span>🎯 <span id="precisionMetros">0m</span> | 📍 <span id="coordsShort">-</span></span>
+            </div>
+        </div>
+        
+        <!-- BOTONES INFERIORES (solo lo esencial para el pasajero) -->
+        <div class="botones-inferiores">
+            <button class="btn btn-maps" onclick="abrirGoogleMaps()">🗺️ DESTINO EN GOOGLE MAPS</button>
+            <div class="btn-row">
+                <button class="btn btn-iniciar" id="btnIniciar" onclick="iniciarServicio()">🟢 INICIAR</button>
+                <button class="btn btn-detener" id="btnDetener" onclick="detenerServicio()" disabled>🔴 DETENER</button>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-cobrar" id="btnCobrar" onclick="confirmarCobro()">💰 COBRAR</button>
+                <button class="btn btn-cancelar-cobro" id="btnCancelarCobro" onclick="cancelarCobro()">❌ CANCELAR</button>
+            </div>
+            <button class="btn btn-config" onclick="mostrarConfigPage()">⚙️ CONFIGURACIÓN</button>
+        </div>
+        
+        <!-- PÁGINA CONFIGURACIÓN (incluye historial y exportar) -->
+        <div class="config-page" id="configPage">
+            <h3 style="text-align:center;margin-bottom:10px;color:#FFD700;">⚙️ Panel del Chofer</h3>
+            
+            <!-- Botones de acceso rápido -->
+            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+                <button class="btn btn-accion btn-historial" onclick="mostrarHistorialDesdeConfig()">📋 HISTORIAL</button>
+                <button class="btn btn-accion btn-exportar" onclick="mostrarExportModal()">📤 EXPORTAR</button>
+            </div>
+            
+            <div class="config-section">
+                <div class="config-title">🔐 Tarifas <button class="btn btn-desbloquear" onclick="mostrarModalPassword()">🔓 DESBLOQUEAR</button></div>
+                <div id="configContent" class="config-bloqueada">
+                    <div class="input-group"><label>🐛 Depuración:</label><input type="checkbox" id="modoDebug" onchange="toggleModoDebug()"></div>
+                    <div class="input-group"><label>🚫 Vel. mínima (km/h):</label><input type="number" id="velMinima" value="3" step="1" min="1" max="20"></div>
+                    <div class="tarifa-section">
+                        <div class="config-title">☀️ Diurna (5 AM - 10 PM)</div>
+                        <div class="input-group"><label>Banderazo ($):</label><input type="number" id="banderazoDiurno" value="9.00" step="0.01" min="0"></div>
+                        <div class="input-group"><label>Km ($):</label><input type="number" id="precioKmDiurno" value="0.14" step="0.01" min="0"></div>
+                        <div class="input-group"><label>Min espera ($):</label><input type="number" id="precioEsperaDiurno" value="0.14" step="0.01" min="0"></div>
+                    </div>
+                    <div class="tarifa-section tarifa-nocturna-section">
+                        <div class="config-title">🌙 Nocturna (10 PM - 5 AM)</div>
+                        <div class="input-group"><label>Banderazo ($):</label><input type="number" id="banderazoNocturno" value="11.00" step="0.01" min="0"></div>
+                        <div class="input-group"><label>Km ($):</label><input type="number" id="precioKmNocturno" value="0.17" step="0.01" min="0"></div>
+                        <div class="input-group"><label>Min espera ($):</label><input type="number" id="precioEsperaNocturno" value="0.17" step="0.01" min="0"></div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-volver" onclick="volverAlPrincipal()">⬅️ VOLVER AL TAXÍMETRO</button>
+        </div>
+        
+        <!-- PÁGINA HISTORIAL -->
+        <div class="historial-page" id="historialPage">
+            <h3 style="text-align:center;margin-bottom:10px;color:#FFD700;">📊 Historial</h3>
+            <div class="estadisticas-rapidas" id="estadisticasRapidas"></div>
+            <div id="historialContainer"></div>
+            <button class="btn btn-volver" onclick="volverAlPrincipal()">⬅️ VOLVER AL TAXÍMETRO</button>
+            <button class="btn btn-detener" onclick="limpiarHistorial()" style="width:100%;margin-top:5px;font-size:0.7em;">🗑️ LIMPIAR</button>
+        </div>
+    </div>
+
+    <!-- MODALES -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content"><h3>🔐 Administrador</h3><input type="password" id="passwordInput" placeholder="Contraseña" maxlength="10"><div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-iniciar" onclick="verificarPassword()" style="flex:1;">✅ DESBLOQUEAR</button><button class="btn" onclick="cerrarModal('passwordModal')" style="flex:1;background:#95a5a6;">CANCELAR</button></div></div>
+    </div>
+    <div id="exportModal" class="modal">
+        <div class="modal-content"><h3>📤 Exportar</h3><select id="exportFormat"><option value="csv">CSV (Excel)</option><option value="json">JSON</option></select><textarea id="exportData" readonly></textarea><div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-exportar" onclick="descargarArchivo()" style="flex:1;font-size:0.8em;">💾 DESCARGAR</button><button class="btn btn-exportar" onclick="copiarPortapapeles()" style="flex:1;font-size:0.8em;">📋 COPIAR</button></div></div>
+    </div>
+
+    <script>
+        // ===================== NAVEGACIÓN =====================
+        function mostrarConfigPage(){
+            document.querySelector('.display-principal').style.display='none';
+            document.querySelector('.botones-inferiores').style.display='none';
+            document.getElementById('configPage').classList.add('activo');
+            document.getElementById('historialPage').classList.remove('activo');
+        }
+        function mostrarHistorialDesdeConfig(){
+            document.getElementById('configPage').classList.remove('activo');
+            document.getElementById('historialPage').classList.add('activo');
+            if(window.app)app.mostrarHistorial();
+        }
+        function volverAlPrincipal(){
+            document.querySelector('.display-principal').style.display='flex';
+            document.querySelector('.botones-inferiores').style.display='flex';
+            document.getElementById('configPage').classList.remove('activo');
+            document.getElementById('historialPage').classList.remove('activo');
+        }
+        function abrirGoogleMaps(){window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving','_blank');}
+        function cerrarModal(id){document.getElementById(id).style.display='none';}
+
+        // ===================== CONFIGURACIÓN =====================
+        const CONFIG_URL='https://jjfabvyv-oss.github.io/taximetro-edomex/config.json';
+        let remoteConfig=null;
+        async function cargarConfiguracionRemota(){try{const r=await fetch(CONFIG_URL);if(r.ok){remoteConfig=await r.json();aplicarConfiguracionRemota();}}catch(e){cargarConfigLocal();}}
+        function aplicarConfiguracionRemota(){if(!remoteConfig?.tarifas)return;const t=remoteConfig.tarifas;document.getElementById('banderazoDiurno').value=t.diurna.banderazo;document.getElementById('precioKmDiurno').value=t.diurna.precioKm;document.getElementById('precioEsperaDiurno').value=t.diurna.precioEspera;document.getElementById('banderazoNocturno').value=t.nocturna.banderazo;document.getElementById('precioKmNocturno').value=t.nocturna.precioKm;document.getElementById('precioEsperaNocturno').value=t.nocturna.precioEspera;document.getElementById('velMinima').value=remoteConfig.velMinima||3;}
+        function cargarConfigLocal(){const c=JSON.parse(localStorage.getItem('taximetroConfig'));if(c){document.getElementById('banderazoDiurno').value=c.banderazoDiurno||9;document.getElementById('precioKmDiurno').value=c.precioKmDiurno||0.14;document.getElementById('precioEsperaDiurno').value=c.precioEsperaDiurno||0.14;document.getElementById('banderazoNocturno').value=c.banderazoNocturno||11;document.getElementById('precioKmNocturno').value=c.precioKmNocturno||0.17;document.getElementById('precioEsperaNocturno').value=c.precioEsperaNocturno||0.17;document.getElementById('velMinima').value=c.velMinima||3;}}
+        function getPassword(){return remoteConfig?.password||localStorage.getItem('taximetroPassword')||'1234';}
+        function mostrarModalPassword(){document.getElementById('passwordModal').style.display='flex';document.getElementById('passwordInput').value='';}
+        function verificarPassword(){if(document.getElementById('passwordInput').value===getPassword()){document.getElementById('configContent').classList.remove('config-bloqueada');cerrarModal('passwordModal');if(window.app)app.mostrarNotificacion('✅ Desbloqueado');setTimeout(()=>document.getElementById('configContent').classList.add('config-bloqueada'),120000);}else{if(window.app)app.mostrarNotificacion('❌ Incorrecta');}}
+
+        // ===================== APP =====================
+        class TaximetroApp{
+            constructor(){
+                this.servicioActivo=false;this.watchId=null;this.wakeLock=null;
+                this.ultimaPosicion=null;this.kmAcumulados=0;this.kmCobrados=0;
+                this.segundosEspera=0;this.minutosCobrados=0;this.tiempoInicio=null;
+                this.enEspera=false;this.inicioEspera=null;this.esperandoCobro=false;
+                this.historial=JSON.parse(localStorage.getItem('taximetroHistorial')||'[]');
+                this.timerInterval=null;this.horaCheckInterval=null;
+                this.gpsActivo=false;this.precisionActual=0;this.modoDebug=false;
+                this.iniciarMonitorHorario();this.verificarTarifaActual();
+                const d=JSON.parse(localStorage.getItem('taximetroDebug'));
+                if(d){document.getElementById('modoDebug').checked=d.modoDebug||false;this.modoDebug=d.modoDebug||false;}
+            }
+            async activarWakeLock(){try{if('wakeLock' in navigator)this.wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
+            async desactivarWakeLock(){if(this.wakeLock){await this.wakeLock.release();this.wakeLock=null;}}
+            actualizarEstadoServicio(e){const m=document.getElementById('estadoServicioMini');if(e==='cobro'){m.className='estado-servicio-mini estado-cobro-mini';m.textContent='💳 PAGANDO';}else if(this.servicioActivo){m.className='estado-servicio-mini estado-ocupado-mini';m.textContent='EN SERVICIO';}else{m.className='estado-servicio-mini estado-libre-mini';m.textContent='LIBRE';}}
+            logDebug(m){console.log(m);if(this.modoDebug){document.getElementById('debugText').textContent=m;document.getElementById('debugInfo').classList.add('show');}}
+            toggleModoDebug(){this.modoDebug=document.getElementById('modoDebug').checked;localStorage.setItem('taximetroDebug',JSON.stringify({modoDebug:this.modoDebug}));if(!this.modoDebug)document.getElementById('debugInfo').classList.remove('show');}
+            esHorarioNocturno(){return new Date().getHours()>=22||new Date().getHours()<5;}
+            obtenerTarifaActual(){const n=this.esHorarioNocturno();return{banderazo:parseFloat(document.getElementById(n?'banderazoNocturno':'banderazoDiurno').value)||9,precioKm:parseFloat(document.getElementById(n?'precioKmNocturno':'precioKmDiurno').value)||0.14,precioEspera:parseFloat(document.getElementById(n?'precioEsperaNocturno':'precioEsperaDiurno').value)||0.14,tipo:n?'nocturna':'diurna'};}
+            verificarTarifaActual(){const n=this.esHorarioNocturno(),ind=document.getElementById('tarifaIndicator');if(n){ind.className='tarifa-indicator tarifa-nocturna';ind.textContent='🌙 NOCTURNA';}else{ind.className='tarifa-indicator tarifa-diurna';ind.textContent='☀️ DIURNA';}}
+            iniciarMonitorHorario(){this.actualizarHoraActual();this.horaCheckInterval=setInterval(()=>{this.actualizarHoraActual();this.verificarTarifaActual();},1000);}
+            actualizarHoraActual(){const a=new Date();document.getElementById('horaActual').textContent=a.toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'})+' - '+a.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}
+            calcularDistancia(lat1,lon1,lat2,lon2){const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+            actualizarEstadoSensores(g){this.gpsActivo=g;document.getElementById('gpsDot').className='gps-dot '+(g?'gps-active':'gps-inactive');document.getElementById('gpsStatus').textContent=g?'GPS: Activo ✓':'GPS: Buscando...';}
+            async iniciarServicio(){if(!navigator.geolocation){alert('GPS no soportado');return;}this.servicioActivo=true;this.esperandoCobro=false;this.kmAcumulados=0;this.kmCobrados=0;this.segundosEspera=0;this.minutosCobrados=0;this.tiempoInicio=Date.now();this.enEspera=false;this.ultimaPosicion=null;document.getElementById('btnIniciar').disabled=true;document.getElementById('btnDetener').disabled=false;document.getElementById('btnCobrar').classList.remove('activo');document.getElementById('btnCancelarCobro').classList.remove('activo');this.actualizarEstadoServicio('servicio');this.actualizarEstadoSensores(false);await this.activarWakeLock();this.iniciarGPS();this.iniciarTimer();this.actualizarDisplay();}
+            iniciarGPS(){navigator.geolocation.getCurrentPosition((pos)=>{this.ultimaPosicion={lat:pos.coords.latitude,lon:pos.coords.longitude,timestamp:pos.timestamp};this.precisionActual=pos.coords.accuracy||5;this.actualizarEstadoSensores(true);this.actualizarDisplay();this.iniciarMonitoreoGPS();},(e)=>{this.actualizarEstadoSensores(false);setTimeout(()=>this.iniciarGPS(),3000);},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
+            iniciarMonitoreoGPS(){if(this.watchId)navigator.geolocation.clearWatch(this.watchId);this.watchId=navigator.geolocation.watchPosition((pos)=>{if(!this.servicioActivo&&!this.esperandoCobro)return;const np={lat:pos.coords.latitude,lon:pos.coords.longitude,timestamp:pos.timestamp,velocidad:pos.coords.speed?pos.coords.speed*3.6:0};this.precisionActual=pos.coords.accuracy||5;if(this.ultimaPosicion){const d=this.calcularDistancia(this.ultimaPosicion.lat,this.ultimaPosicion.lon,np.lat,np.lon);if(d<0.1&&d>0.002){this.kmAcumulados+=d;if(this.kmAcumulados>=(this.kmCobrados+1)*0.8){this.kmCobrados=Math.floor(this.kmAcumulados);this.animarSalto('kmRecorridos');this.animarSalto('tarifaActual');}const vm=parseInt(document.getElementById('velMinima').value)||3;if(np.velocidad<vm&&!this.enEspera){this.enEspera=true;this.inicioEspera=Date.now();}else if(np.velocidad>=vm&&this.enEspera){this.enEspera=false;this.inicioEspera=null;}}}this.ultimaPosicion=np;this.actualizarEstadoSensores(true);document.getElementById('coordsShort').textContent=np.lat.toFixed(4)+','+np.lon.toFixed(4);this.actualizarDisplay();},(e)=>{this.actualizarEstadoSensores(false);},{enableHighAccuracy:true,timeout:10000,maximumAge:0,distanceFilter:0});}
+            async detenerServicio(){if(this.watchId){navigator.geolocation.clearWatch(this.watchId);this.watchId=null;}this.servicioActivo=false;this.esperandoCobro=true;document.getElementById('btnIniciar').disabled=true;document.getElementById('btnDetener').disabled=true;document.getElementById('btnCobrar').classList.add('activo');document.getElementById('btnCancelarCobro').classList.add('activo');this.actualizarEstadoServicio('cobro');}
+            async confirmarCobro(){this.historial.unshift({id:Date.now(),fecha:new Date().toLocaleString(),cobrado:true,kmCobrados:this.kmCobrados,minutosEspera:this.minutosCobrados,tiempo:this.calcularTiempoTranscurrido(),tarifa:document.getElementById('tarifaActual').textContent,tipoTarifa:this.obtenerTarifaActual().tipo});if(this.historial.length>100)this.historial.pop();localStorage.setItem('taximetroHistorial',JSON.stringify(this.historial));this.finalizarViaje();}
+            async cancelarCobro(){if(!confirm('¿Cancelar cobro? Se guardará como NO cobrado.'))return;this.historial.unshift({id:Date.now(),fecha:new Date().toLocaleString(),cobrado:false,kmCobrados:this.kmCobrados,minutosEspera:this.minutosCobrados,tiempo:this.calcularTiempoTranscurrido(),tarifa:document.getElementById('tarifaActual').textContent,tipoTarifa:this.obtenerTarifaActual().tipo});if(this.historial.length>100)this.historial.pop();localStorage.setItem('taximetroHistorial',JSON.stringify(this.historial));this.finalizarViaje();}
+            async finalizarViaje(){this.esperandoCobro=false;this.kmAcumulados=0;this.kmCobrados=0;this.segundosEspera=0;this.minutosCobrados=0;this.tiempoInicio=null;this.enEspera=false;document.getElementById('btnIniciar').disabled=false;document.getElementById('btnDetener').disabled=true;document.getElementById('btnCobrar').classList.remove('activo');document.getElementById('btnCancelarCobro').classList.remove('activo');this.actualizarEstadoServicio('libre');if(this.timerInterval)clearInterval(this.timerInterval);await this.desactivarWakeLock();this.actualizarEstadoSensores(false);document.getElementById('esperaInfoText').classList.remove('activo');document.getElementById('progresoEspera').style.width='0%';this.actualizarDisplay();}
+            calcularTarifa(){const t=this.obtenerTarifaActual();return t.banderazo+(this.kmCobrados*t.precioKm)+(this.minutosCobrados*t.precioEspera);}
+            calcularTiempoTranscurrido(){if(!this.tiempoInicio)return'00:00';const t=Math.floor((Date.now()-this.tiempoInicio)/1000);return String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');}
+            animarSalto(id){const el=document.getElementById(id);if(id==='tarifaActual'){el.classList.add('salto');setTimeout(()=>el.classList.remove('salto'),400);}else{el.classList.add('saltando');setTimeout(()=>el.classList.remove('saltando'),300);}}
+            iniciarTimer(){if(this.timerInterval)clearInterval(this.timerInterval);this.timerInterval=setInterval(()=>{if(!this.servicioActivo&&!this.esperandoCobro)return;if(this.enEspera&&this.inicioEspera){this.segundosEspera=Math.floor((Date.now()-this.inicioEspera)/1000);const s=this.segundosEspera%60;document.getElementById('progresoEspera').style.width=(s/60*100)+'%';document.getElementById('esperaCobroActual').textContent=(this.minutosCobrados*this.obtenerTarifaActual().precioEspera).toFixed(2);document.getElementById('esperaInfoText').classList.add('activo');if(this.segundosEspera>=(this.minutosCobrados+1)*48){this.minutosCobrados=Math.floor(this.segundosEspera/60);this.animarSalto('tiempoEspera');this.animarSalto('tarifaActual');}}else{document.getElementById('esperaInfoText').classList.remove('activo');document.getElementById('progresoEspera').style.width='0%';}this.actualizarDisplay();},1000);}
+            actualizarDisplay(){
+                if(!this.servicioActivo&&!this.esperandoCobro){document.getElementById('tarifaActual').textContent='$0.00';document.getElementById('kmRecorridos').textContent='0';document.getElementById('tiempoTranscurrido').textContent='00:00';document.getElementById('tiempoEspera').textContent='0m';document.getElementById('velocidad').textContent='0';document.getElementById('precisionMetros').textContent='0m';return;}
+                document.getElementById('tarifaActual').textContent='$'+this.calcularTarifa().toFixed(2);
+                document.getElementById('kmRecorridos').textContent=this.kmCobrados;
+                document.getElementById('tiempoTranscurrido').textContent=this.calcularTiempoTranscurrido();
+                document.getElementById('tiempoEspera').textContent=this.minutosCobrados+'m';
+                document.getElementById('velocidad').textContent=this.ultimaPosicion?this.ultimaPosicion.velocidad.toFixed(0):'0';
+                document.getElementById('precisionMetros').textContent=Math.round(this.precisionActual)+'m';
+            }
+            exportarCSV(){let c='Fecha,Tipo,Km,Min Espera,Tarifa,Cobrado\n';this.historial.forEach(v=>{c+=`"${v.fecha}","${v.tipoTarifa}",${v.kmCobrados||0},${v.minutosEspera||0},"${v.tarifa}","${v.cobrado!==false?'SI':'NO'}"\n`;});return c;}
+            exportarJSON(){return JSON.stringify({fecha:new Date().toISOString(),viajes:this.historial},null,2);}
+            mostrarHistorial(){const c=document.getElementById('historialContainer');c.innerHTML='';if(!this.historial.length){c.innerHTML='<p style="text-align:center;color:#999;">Sin viajes</p>';document.getElementById('estadisticasRapidas').innerHTML='';return;}const cob=this.historial.filter(v=>v.cobrado!==false);document.getElementById('estadisticasRapidas').innerHTML=`<div class="stat-item">💰 $${cob.reduce((s,v)=>s+parseFloat(v.tarifa.replace('$','')),0).toFixed(2)}</div><div class="stat-item">🚗 ${this.historial.length}</div><div class="stat-item">❌ ${this.historial.filter(v=>v.cobrado===false).length}</div>`;this.historial.forEach((v,i)=>{const d=document.createElement('div');d.className='historial-item'+(v.tipoTarifa==='nocturna'?' nocturno':'')+(v.cobrado===false?' cancelado':'');d.innerHTML=`<strong>#${i+1} - ${v.tipoTarifa==='nocturna'?'🌙':'☀️'} ${v.tipoTarifa?.toUpperCase()} ${v.cobrado===false?'❌ NO COBRADO':'✅'}</strong><br>📅 ${v.fecha}<br>📍 ${v.kmCobrados||0} km | ⏳ ${v.minutosEspera||0} min<br>💰 ${v.tarifa}`;c.appendChild(d);});}
+            mostrarNotificacion(m){const n=document.createElement('div');n.className='notification';n.textContent=m;document.body.appendChild(n);setTimeout(()=>{n.style.animation='slideOut 0.3s ease';setTimeout(()=>n.remove(),300);},3000);}
+        }
+
+        async function initApp(){await cargarConfiguracionRemota();window.app=new TaximetroApp();}
+        initApp();
+        function iniciarServicio(){if(window.app)app.iniciarServicio();}
+        function detenerServicio(){if(window.app)app.detenerServicio();}
+        function confirmarCobro(){if(window.app)app.confirmarCobro();}
+        function cancelarCobro(){if(window.app)app.cancelarCobro();}
+        function limpiarHistorial(){if(confirm('¿Eliminar todo?')&&window.app){app.historial=[];localStorage.setItem('taximetroHistorial','[]');app.mostrarHistorial();app.mostrarNotificacion('Historial eliminado');}}
+        function mostrarExportModal(){document.getElementById('exportModal').style.display='flex';actualizarExportData();}
+        function actualizarExportData(){if(!window.app)return;document.getElementById('exportData').value=document.getElementById('exportFormat').value==='csv'?app.exportarCSV():app.exportarJSON();}
+        document.getElementById('exportFormat').addEventListener('change',actualizarExportData);
+        function descargarArchivo(){const f=document.getElementById('exportFormat').value,d=document.getElementById('exportData').value,b=new Blob([d],{type:'text/plain'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`taximetro_edomex_${new Date().toISOString().slice(0,10)}.${f}`;a.click();URL.revokeObjectURL(u);if(window.app)app.mostrarNotificacion('✅ Descargado');}
+        async function copiarPortapapeles(){try{await navigator.clipboard.writeText(document.getElementById('exportData').value);if(window.app)app.mostrarNotificacion('✅ Copiado');}catch(e){}}
+        window.onclick=function(e){if(e.target.className==='modal')e.target.style.display='none';}
+    </script>
+</body>
+</html>
